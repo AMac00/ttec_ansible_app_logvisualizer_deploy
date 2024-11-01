@@ -1,0 +1,101 @@
+---
+- name: 'vcenter clone a vm'
+  gather_facts: yes
+  hosts: localhost
+  tasks:
+
+
+     - name: Create a VM folder on given datacenter
+       vcenter_folder:
+         hostname: '{{ lookup("env", "VMWARE_HOST") }}'
+         username: '{{ lookup("env", "VMWARE_USER") }}'
+         password: '{{ lookup("env", "VMWARE_PASSWORD") }}'
+         validate_certs: "{{ validate_certs }}"
+         datacenter_name: "{{ vcenter_datacenter }}"
+         folder_name: '{{ vcenter_folder }}'
+         folder_type: '{{ folder_type }}'
+         parent_folder: '{{ vcenter_folder_parent }}'
+         state: present
+       register: vm_folder_creation_result
+       delegate_to: localhost
+       when:
+         - rollback == false
+
+
+     - name:  Clone a virtual machine from Linux template and customize
+       vmware_guest:
+         hostname: '{{ lookup("env", "VMWARE_HOST") }}'
+         username: '{{ lookup("env", "VMWARE_USER") }}'
+         password: '{{ lookup("env", "VMWARE_PASSWORD") }}'
+         validate_certs: '{{ validate_certs }}'
+         datacenter: '{{ vcenter_datacenter }}'
+         state: '{{ vm_state }}'
+         datastore: "{{ vcenter_datastore }}"
+         folder: '{{ vcenter_to_folder }}'
+         template: '{{ vm_clone_template_name }}'
+         name: '{{ vm_clone_new_name }}'
+         esxi_hostname: '{{ esxi_hostname }}'
+         networks:
+           - name: '{{ vm_network }}'
+             ip: '{{ vm_ip }}'
+             netmask: '{{ vm_mask }}'
+             gateway: '{{ vm_gateway }}'
+         wait_for_ip_address: True
+         customization:
+           domain: "{{ env_domain }}"
+           hostname: "{{ vm_hostname }}"
+           dns_servers:
+             - "{{ dns_server_a }}"
+           dns_suffix:
+             - "{{ dns_suffix }}"
+       delegate_to: localhost
+       when:
+        - existing_vm == false
+        - rollback == false
+
+    - name:  Customize an existing linux virtual machine
+      vmware_guest:
+        hostname: '{{ lookup("env", "VMWARE_HOST") }}'
+        username: '{{ lookup("env", "VMWARE_USER") }}'
+        password: '{{ lookup("env", "VMWARE_PASSWORD") }}'
+        validate_certs: '{{ validate_certs }}'
+        datacenter: '{{ vcenter_datacenter }}'
+        state: '{{ vm_state }}'
+        datastore: "{{ vcenter_datastore }}"
+        folder: '{{ vcenter_to_folder }}'
+        name: '{{ vm_name }}'
+        esxi_hostname: '{{ esxi_hostname }}'
+        networks:
+          - name: '{{ vm_network }}'
+            ip: '{{ vm_ip }}'
+            netmask: '{{ vm_mask }}'
+            gateway: '{{ vm_gateway }}'
+        wait_for_ip_address: True
+        customization:
+          existing_vm: '{{ existing_vm }}'
+          domain: "{{ env_domain }}"
+          hostname: "{{ vm_hostname }}"
+          dns_servers:
+            - "{{ dns_server_a }}"
+          dns_suffix:
+            - "{{ dns_suffix }}"
+      delegate_to: localhost
+      when:
+        - existing_vm == true
+        - rollback == false
+
+    # Roll back
+     - name: Remove "{{ vm_hostname }}"
+       vmware_guest:
+        hostname: '{{ lookup("env", "VMWARE_HOST") }}'
+        username: '{{ lookup("env", "VMWARE_USER") }}'
+        password: '{{ lookup("env", "VMWARE_PASSWORD") }}'
+        validate_certs: '{{ validate_certs }}'
+        datacenter: '{{ vcenter_datacenter }}'
+        name: '{{ vm_name }}'
+         state: absent
+       delegate_to: localhost
+       register: facts
+       when:
+         - existing_vm == true
+         - rollback == false
